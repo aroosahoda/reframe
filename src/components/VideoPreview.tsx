@@ -6,11 +6,13 @@ import { EditRecipe, TextOverlay } from "@/lib/types";
 import { getPresetById } from "@/lib/presets";
 import { cn } from "@/lib/utils";
 import { Camera } from "lucide-react";
+import { clampPreviewTime, getPreviewRotationStyle, shouldAllowPreviewOverflow } from "@/lib/preview";
 import ComparisonPreview from "./ComparisonPreview";
 import DraggableTextOverlays from "./DraggableTextOverlays";
 
 interface Props {
   file: File | null;
+  duration: number;
   recipe?: EditRecipe;
   videoRef: RefObject<HTMLVideoElement | null>;
   selectedTextId?: string | null;
@@ -20,6 +22,7 @@ interface Props {
 
 export default function VideoPreview({
   file,
+  duration,
   recipe,
   videoRef,
   selectedTextId = null,
@@ -67,6 +70,19 @@ export default function VideoPreview({
     }, "image/png");
   }, [videoRef]);
 
+  const syncPreviewState = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !recipe) return;
+
+    video.playbackRate = recipe.speed;
+    video.muted = !recipe.keepAudio;
+
+    const targetTime = clampPreviewTime(recipe.trimStart, recipe.trimEnd, duration);
+    if (Number.isFinite(video.duration) && video.duration > 0) {
+      video.currentTime = targetTime;
+    }
+  }, [duration, recipe, videoRef]);
+
   useEffect(() => {
     if (!file) return;
 
@@ -88,6 +104,7 @@ export default function VideoPreview({
 
     const handleLoaded = () => {
       if (lastId.current !== id) return;
+      syncPreviewState();
       video.play().catch(() => {});
     };
 
@@ -112,17 +129,29 @@ export default function VideoPreview({
         urlRef.current = null;
       }
     };
-  }, [file, videoRef]);
+  }, [file, syncPreviewState, videoRef]);
 
   useEffect(() => {
-    if (!videoRef.current || !recipe) return;
-    videoRef.current.muted = !recipe.keepAudio;
-  }, [recipe, videoRef]);
+    syncPreviewState();
+  }, [recipe, duration, syncPreviewState]);
 
   useEffect(() => {
-    if (!videoRef.current || !recipe) return;
-    videoRef.current.playbackRate = recipe.speed;
-  }, [recipe, videoRef]);
+    const video = videoRef.current;
+    if (!video || !recipe) return;
+
+    const handleTimeUpdate = () => {
+      if (!duration || recipe.trimEnd === null) {
+        return;
+      }
+
+      if (video.currentTime >= recipe.trimEnd) {
+        video.currentTime = clampPreviewTime(recipe.trimStart, recipe.trimEnd, duration);
+      }
+    };
+
+    video.addEventListener("timeupdate", handleTimeUpdate);
+    return () => video.removeEventListener("timeupdate", handleTimeUpdate);
+  }, [duration, recipe, videoRef]);
 
   /**
    * Track preview container dimensions for text overlay positioning.
@@ -212,12 +241,17 @@ export default function VideoPreview({
     }
   };
 
+  const allowOverflow = shouldAllowPreviewOverflow(recipe?.rotate ?? 0);
+
   return (
     <>
       <div
         ref={previewContainerRef}
         role="group"
-        className="relative w-full rounded-lg overflow-hidden bg-[var(--bg)] aspect-video focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+        className={cn(
+          "relative w-full rounded-lg bg-[var(--bg)] aspect-video focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]",
+          allowOverflow ? "overflow-visible" : "overflow-hidden"
+        )}
         tabIndex={0}
         onKeyDown={handleKeyDown}
         aria-label="Video preview (press Space to play/pause)"
@@ -236,6 +270,7 @@ export default function VideoPreview({
           onLoadedData={() => setIsLoading(false)}
           playsInline
           muted={!recipe?.keepAudio}
+          style={getPreviewRotationStyle(recipe?.rotate ?? 0)}
         >
           <track kind="captions" />
         </video>

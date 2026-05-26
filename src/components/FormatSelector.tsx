@@ -25,7 +25,7 @@ export default function FormatSelector({ recipe, onChange }: Props) {
           Output Format
         </div>
       </div>
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {FORMAT_OPTIONS.map((option) => (
           <button
             key={option.id}

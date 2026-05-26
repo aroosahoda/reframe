@@ -1,7 +1,7 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { toBlobURL } from "@ffmpeg/util";
 import { EditRecipe, BackgroundMusicOptions, ImageOverlayOptions } from "./types";
-import { getPresetById } from "./presets";
+import { getPresetById } from "@/lib/presets";
 import { buildTextFilter } from "./text-overlay";
 
 const CORE_BASE_URL = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
